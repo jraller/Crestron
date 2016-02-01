@@ -107,6 +107,7 @@ INTEGER index;
 // Analogs  20 char id + : + 5  + EOL * 100 = 2700
 // Strings  20 char id + : + 60 + EOL * 100 = 8200
 // 13200 total rounded up is 14000
+// allow for some comments 32000
          
 /*******************************************************************************************
   Functions
@@ -118,7 +119,7 @@ Function LoadSettings()
 	SIGNED_INTEGER fileOps; // are we clear to access files
 	SIGNED_INTEGER nFileHandle; // the file handler
 	INTEGER fileSize;
-	STRING rBuf[14000];
+	STRING rBuf[32000];
 
 	rBuf = "";
                             
@@ -129,7 +130,7 @@ Function LoadSettings()
 		IF (nFileHandle = 0 && FileEOF(nFileHandle) = 0)
 		{
 			Print("We have a non-empty file %d\n", FileEOF(nFileHandle));
-			fileSize = FileRead(nFileHandle, rBuf, 14000);
+			fileSize = FileRead(nFileHandle, rBuf, 32000);
 			ResizeString(sBuf, fileSize + 2);
 			sBuf = "\n" + LEFT(rBuf, fileSize) + "\n"; // pre and postpend \n
 			FileClose(nFileHandle);
