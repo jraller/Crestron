@@ -1,0 +1,108 @@
+/*******************************************************************************************
+  SIMPL+ Module Information
+  (Fill in comments below)
+*******************************************************************************************/
+/*
+Dealer Name: UC Davis School of Law
+System Name: Numeric String to Analog
+System Number:
+Programmer:Jason Aller
+Comments:
+*/
+
+/*******************************************************************************************
+  Compiler Directives
+*******************************************************************************************/
+#ENABLE_DYNAMIC
+#SYMBOL_NAME "Numeric String to Analog"
+#HINT "Converts Numeric Serials to Analogs"
+#CATEGORY "10" // Serial
+#PRINT_TO_TRACE
+#ANALOG_SERIAL_EXPAND InputsWithOutputs
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+//#ENABLE_TRACE // comment this out for production
+#ENCODING_INHERIT_FROM_PROGRAM
+
+#HELP_BEGIN
+MODULE NAME: Numeric Serial String to Analog
+
+CATEGORY: Serial
+
+VERSION: 1.0 (2016/01/28)
+
+SUMMARY: Convert Serial Strings with numeric content to Analog values
+
+MODULE DESCRIPTION:
+
+On change convert. Number of inputs must equal number of outputs.
+
+INPUT DESCRIPTIONS: Five character strings of decimals with spaces ignored.
+Any other character enounter will ignore the remainder of the string.
+This is different than the ATOI behavior.
+
+OUTPUT DESCRIPTIONS: can be 0 through 65,535
+
+PARAMETER DESCRIPTIONS: N/A.
+
+REVISION HISTORY:
+
+====1.0====
+
+Initial release
+#HELP_END
+
+/*******************************************************************************************
+  DIGITAL, ANALOG and SERIAL INPUTS and OUTPUTS
+*******************************************************************************************/
+
+STRING_INPUT sIn[100,1][5];
+
+ANALOG_OUTPUT aOut[100,1];
+
+/*******************************************************************************************
+  Functions
+*******************************************************************************************/
+
+Integer_Function Convert(STRING source)
+{
+	INTEGER value;
+	INTEGER X;
+	SIGNED_INTEGER digit;
+	INTEGER good;
+
+	value = 0;
+	good = 1;
+
+	FOR (X = 1 TO LEN(source)) {
+		digit = BYTE(source, X) - 48;
+		IF (digit >= 0 && digit <= 9 && good)
+		{
+			value = (value * 10) + digit;
+		}
+		ELSE IF (digit = 32 - 48) // ignore spaces
+		{
+		}
+		ELSE // characters other than 0-9 and space
+		{
+			good = 0;
+		}
+	}
+
+    Return (value);
+}
+
+/*******************************************************************************************
+  Event Handlers
+*******************************************************************************************/
+
+CHANGE sIn
+{
+	INTEGER X;
+
+	X = GetLastModifiedArrayIndex(); // Find which sIn changed
+	if (isSignalDefined(aOut[X]))
+	{
+		aOut[X] = Convert(sIn[x]); // Convert it and send it out
+	}
+}
