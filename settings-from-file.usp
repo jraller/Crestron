@@ -1,0 +1,252 @@
+/*******************************************************************************************
+  SIMPL+ Module Information
+*******************************************************************************************/
+/*
+Dealer Name: UC Davis School of Law
+System Name: Settings File
+System Number:
+Programmer:Jason Aller
+Comments:
+*/
+
+/*******************************************************************************************
+  Compiler Directives
+*******************************************************************************************/
+#ENABLE_DYNAMIC
+#SYMBOL_NAME "Settings"
+#HINT "Loads variables from text file"
+#CATEGORY "9" // Memory
+#PRINT_TO_TRACE
+#DIGITAL_EXPAND OutputsWithParams
+#ANALOG_SERIAL_EXPAND OutputsWithParams
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE // comment out before release
+#ENCODING_INHERIT_FROM_PROGRAM
+
+#HELP_BEGIN
+MODULE NAME: Settings
+
+CATEGORY: Memory
+
+VERSION: 1.0 (2016/01/14)
+
+SUMMARY: Load variables from a text file
+
+MODULE DESCRIPTION:
+
+When the program starts, looks for a file matching the supplied name.
+
+Loads file and parses it for variables matching output names.
+
+For each matched name it populates the provided value.
+                   
+If the file is in the format:
+
+foo:1
+bar:Two people walk into a...
+line mentioning baz:1
+baz:32000
+
+then foo will be set to 1
+bar to "Two people walk into a..."
+and baz to 32000 because line 3 will be treated like a comment.
+
+INPUT DESCRIPTIONS:
+
+load can be tied to program start, or triggered as a means of reseting values.
+
+OUTPUT DESCRIPTIONS:
+
+loaded is set to true when processing is complete.
+load_os is pulsed as a one shot when processing is complete.
+
+PARAMETER DESCRIPTIONS:
+
+Parameters need to match the variable name in the file and can be 20 characters long.
+
+Parameters are tied to either digital or serial outputs.
+
+REVISION HISTORY:
+
+====1.0====
+
+Initial release
+
+#HELP_END
+
+/*******************************************************************************************
+  DIGITAL, ANALOG and SERIAL INPUTS and OUTPUTS
+*******************************************************************************************/
+DIGITAL_INPUT load, _SKIP_, _SKIP_;
+
+DIGITAL_OUTPUT loaded, load_os, _SKIP_;
+DIGITAL_OUTPUT d_const[100,1];
+STRING_OUTPUT s_const[200,1];
+
+/*******************************************************************************************
+  Parameters
+*******************************************************************************************/
+STRING_PARAMETER path[60], _SKIP_, _SKIP_;
+#BEGIN_PARAMETER_PROPERTIES path
+	propDefaultValue = "\\User\settings.txt";
+	propShortDescription = "The full path to the settings file separated by \\";
+#END_PARAMETER_PROPERTIES
+STRING_PARAMETER const_name[300,1][20];
+
+/*******************************************************************************************
+  Global Variables
+*******************************************************************************************/
+
+DYNAMIC STRING sBuf[1];
+INTEGER dCount;
+INTEGER sCount;
+INTEGER index;
+
+// Digitals 20 char id + : + 1  + EOL * 100 = 2300
+// Analogs  20 char id + : + 5  + EOL * 100 = 2700
+// Strings  20 char id + : + 60 + EOL * 100 = 8200
+// 13200 total rounded up is 14000
+         
+/*******************************************************************************************
+  Functions
+*******************************************************************************************/
+
+Function LoadSettings()
+{
+	
+	SIGNED_INTEGER fileOps; // are we clear to access files
+	SIGNED_INTEGER nFileHandle; // the file handler
+	INTEGER fileSize;
+	STRING rBuf[14000];
+
+	rBuf = "";
+                            
+	fileOps = StartFileOperations();
+	IF (fileOps = 0 )
+	{	
+		nFileHandle = FileOpenShared(path, _O_RDONLY | _O_TEXT); 
+		IF (nFileHandle = 0 && FileEOF(nFileHandle) = 0)
+		{
+			Print("We have a non-empty file %d\n", FileEOF(nFileHandle));
+			fileSize = FileRead(nFileHandle, rBuf, 14000);
+			ResizeString(sBuf, fileSize + 2);
+			sBuf = "\n" + LEFT(rBuf, fileSize) + "\n"; // pre and postpend \n
+			FileClose(nFileHandle);
+		}
+		ELSE
+		{
+			Print("File not found:(%s) %d \n", path, nFileHandle);
+		}
+		EndFileOperations(); 
+	}
+	ELSE
+	{
+		Print("File error %d \n", fileOps);
+	}
+}
+
+Function FindParam(INTEGER offset, STRING source)
+{
+	STRING target[22]; // holds wrapped version of source
+    INTEGER startPos;
+	STRING line[1];
+	INTEGER endPos;
+	INTEGER colPos;
+	STRING val[1];
+	
+	target = "\n" + source + ":";
+	startPos = FIND(target, sBuf); // \n before and : after
+	endPos = FIND("\n", sBuf, startPos + 1);
+	reSizeString(line, endPos - startPos);
+	line = MID(sBuf, startPos, endPos - startPos);
+	colPos = FIND(":", line) + 1;
+	reSizeString(val, LEN(line) + 1 - colPos);
+	val = MID(line, colPos, LEN(line) + 1 - colPos);
+	PRINT("Setting %s to: [%s]\n", source, val);
+	if (offset <= dCount)
+	{
+		if (val = "1" || lower(val) = "on")
+		{
+			d_const[offset] = on;
+		}
+		ELSE
+		{
+			d_const[offset] = off;
+		}
+	}
+	ELSE
+	{
+		s_const[offset - dCount] = val;
+	}
+}
+
+Function VarLoop()
+{
+	INTEGER X;
+
+	FOR (X = 1 TO GetNumArrayCols(const_name))
+	{
+		IF (const_name[X] <> "")
+		{
+			FindParam(X, const_name[X]);
+		}
+	}
+}
+
+Function loadConstants()
+{
+	loaded = off;
+	LoadSettings();
+	VarLoop();
+	ProcessLogic();
+	loaded = on;
+	Pulse(10, load_os);
+}
+
+/*******************************************************************************************
+  Event Handlers
+*******************************************************************************************/
+
+THREADSAFE PUSH load
+{
+    loadConstants();
+}
+
+/*******************************************************************************************
+  Main()
+  Uncomment and place one-time startup code here
+  (This code will get called when the system starts up)
+*******************************************************************************************/
+
+Function Main()
+{
+    loaded = off;
+	load_os = off;
+
+	dCount = 0;
+	sCount = 0;
+	sBuf = "";
+
+	// Count up defined digital signals
+	For (index = 1 to GetNumArrayCols(d_const))
+	{
+		if (isSignalDefined(d_const[index]))
+		{
+			dCount = dCount + 1;
+		}
+	}
+    
+	// Count up defined serial signals
+	For (index = 1 to GetNumArrayRows(s_const))
+	{
+		if (isSignalDefined(s_const[index]))
+		{
+			sCount = sCount + 1;
+		}
+	}
+
+	SetArray(d_const, 0);
+	SetArray(s_const, "");
+	loadConstants();
+}
