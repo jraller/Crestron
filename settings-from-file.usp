@@ -92,7 +92,7 @@ STRING_PARAMETER path[60], _SKIP_, _SKIP_;
 	propDefaultValue = "\\User\settings.txt";
 	propShortDescription = "The full path to the settings file separated by \\";
 #END_PARAMETER_PROPERTIES
-STRING_PARAMETER const_name[300,1][20];
+STRING_PARAMETER const_name[300,2][20];
 
 /*******************************************************************************************
   Global Variables
