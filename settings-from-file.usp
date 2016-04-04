@@ -31,7 +31,7 @@ CATEGORY: Memory
 
 VERSION: 1.1 (2016/04/04)
 
-SUMMARY: Load variables from a text file
+SUMMARY: Load variables from a text file, allow defaults if variables not found
 
 MODULE DESCRIPTION:
 
@@ -40,6 +40,8 @@ When the program starts, looks for a file matching the supplied name.
 Loads file and parses it for variables matching output names.
 
 For each matched name it populates the provided value.
+
+For each non-matched name use either supplied default or 0/""
                    
 If the file is in the format:
 
@@ -55,6 +57,7 @@ and baz to 32000 because line 3 will be treated like a comment.
 INPUT DESCRIPTIONS:
 
 load can be tied to program start, or triggered as a means of reseting values.
+Module defaults are only loaded once.
 
 OUTPUT DESCRIPTIONS:
 
@@ -77,7 +80,7 @@ Initial release
 
 ====1.1====
 
-Add default values
+Add default parameter values
 
 #HELP_END
 
@@ -158,6 +161,7 @@ Function LoadSettings()
 	}
 }
 
+// get the variable portion of a parameter
 String_Function getVariable(STRING param)
 {
 	STRING value[20];
@@ -175,6 +179,7 @@ String_Function getVariable(STRING param)
 	RETURN(value); 
 }
 
+// get the default value portion of a parameter if it is present
 String_Function getDefault(STRING param)
 {
 	STRING value[20];
@@ -192,7 +197,7 @@ String_Function getDefault(STRING param)
 	RETURN(value); 
 }
 
-
+// match a parameter variable from within sbuf and set the matching output
 Function FindParam(INTEGER offset, STRING source)
 {
 	STRING target[22]; // holds wrapped version of source
@@ -231,6 +236,7 @@ Function FindParam(INTEGER offset, STRING source)
 	}
 }
 
+// loop through the parameters
 Function VarLoop()
 {
 	INTEGER X;
@@ -257,6 +263,7 @@ Function loadConstants()
   Event Handlers
 *******************************************************************************************/
 
+// this will only load from file, not reload from module parameter defaults
 THREADSAFE PUSH load
 {
     loadConstants();
@@ -297,7 +304,7 @@ Function Main()
 		}
 	}
 
-	//interate const_name checking for separator
+	//interate const_names and set parameter default values or 0/""
 	For (index = 1 to (dCount + sCount))
 	{
 		if (Find(separator, const_name[index]) <> 0)
