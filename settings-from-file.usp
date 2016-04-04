@@ -29,7 +29,7 @@ MODULE NAME: Settings
 
 CATEGORY: Memory
 
-VERSION: 1.0 (2016/01/14)
+VERSION: 1.1 (2016/04/04)
 
 SUMMARY: Load variables from a text file
 
@@ -67,11 +67,17 @@ Parameters need to match the variable name in the file and can be 20 characters 
 
 Parameters are tied to either digital or serial outputs.
 
+If a separator is provided it is possible to specify both a variable name and a default value.
+
 REVISION HISTORY:
 
 ====1.0====
 
 Initial release
+
+====1.1====
+
+Add default values
 
 #HELP_END
 
@@ -87,12 +93,18 @@ STRING_OUTPUT s_const[200,1];
 /*******************************************************************************************
   Parameters
 *******************************************************************************************/
-STRING_PARAMETER path[60], _SKIP_, _SKIP_;
+STRING_PARAMETER path[60];
 #BEGIN_PARAMETER_PROPERTIES path
 	propDefaultValue = "\\User\settings.txt";
 	propShortDescription = "The full path to the settings file separated by \\";
 #END_PARAMETER_PROPERTIES
-STRING_PARAMETER const_name[300,2][20];
+STRING_PARAMETER separator[1], _SKIP_;
+#BEGIN_PARAMETER_PROPERTIES separator
+	propDefaultValue = "|";
+	propShortDescription = "The separator used in parameters if both variable name and default value are used";
+#END_PARAMETER_PROPERTIES
+
+STRING_PARAMETER const_name[300,1][276]; // string_output of 255 + sep + 20
 
 /*******************************************************************************************
   Global Variables
@@ -107,7 +119,6 @@ INTEGER index;
 // Analogs  20 char id + : + 5  + EOL * 100 = 2700
 // Strings  20 char id + : + 60 + EOL * 100 = 8200
 // 13200 total rounded up is 14000
-// allow for some comments 32000
          
 /*******************************************************************************************
   Functions
@@ -119,7 +130,7 @@ Function LoadSettings()
 	SIGNED_INTEGER fileOps; // are we clear to access files
 	SIGNED_INTEGER nFileHandle; // the file handler
 	INTEGER fileSize;
-	STRING rBuf[32000];
+	STRING rBuf[14000];
 
 	rBuf = "";
                             
@@ -130,7 +141,7 @@ Function LoadSettings()
 		IF (nFileHandle = 0 && FileEOF(nFileHandle) = 0)
 		{
 			Print("We have a non-empty file %d\n", FileEOF(nFileHandle));
-			fileSize = FileRead(nFileHandle, rBuf, 32000);
+			fileSize = FileRead(nFileHandle, rBuf, 14000);
 			ResizeString(sBuf, fileSize + 2);
 			sBuf = "\n" + LEFT(rBuf, fileSize) + "\n"; // pre and postpend \n
 			FileClose(nFileHandle);
@@ -147,6 +158,41 @@ Function LoadSettings()
 	}
 }
 
+String_Function getVariable(STRING param)
+{
+	STRING value[20];
+	INTEGER sepPos;
+	value = "";
+    sepPos = Find(separator, param);
+	IF (sepPos <> 0)
+	{
+		value = Left(param, sepPos - 1);
+	}
+	ELSE
+	{
+		value = param;
+	}
+	RETURN(value); 
+}
+
+String_Function getDefault(STRING param)
+{
+	STRING value[20];
+	INTEGER sepPos;
+	value = "";
+    sepPos = Find(separator, param);
+	IF (sepPos <> 0)
+	{
+		value = right(param, Len(param) - sepPos);
+	}
+	ELSE
+	{
+		value = param;
+	}
+	RETURN(value); 
+}
+
+
 Function FindParam(INTEGER offset, STRING source)
 {
 	STRING target[22]; // holds wrapped version of source
@@ -156,37 +202,39 @@ Function FindParam(INTEGER offset, STRING source)
 	INTEGER colPos;
 	STRING val[1];
 	
-	target = "\n" + source + ":";
+	target = "\n" + getVariable(source) + ":";
 	startPos = FIND(target, sBuf); // \n before and : after
 	endPos = FIND("\n", sBuf, startPos + 1);
 	reSizeString(line, endPos - startPos);
 	line = MID(sBuf, startPos, endPos - startPos);
-	colPos = FIND(":", line) + 1;
-	reSizeString(val, LEN(line) + 1 - colPos);
-	val = MID(line, colPos, LEN(line) + 1 - colPos);
-	PRINT("Setting %s to: [%s]\n", source, val);
-	if (offset <= dCount)
+    IF (LEN(line) <> 0)
 	{
-		if (val = "1" || lower(val) = "on")
+		colPos = FIND(":", line) + 1;
+		reSizeString(val, LEN(line) + 1 - colPos);
+		val = MID(line, colPos, LEN(line) + 1 - colPos);
+		PRINT("Setting %s to: [%s]\n", source, val);
+		if (offset <= dCount)
 		{
-			d_const[offset] = on;
+			if (val = "1" || lower(val) = "on")
+			{
+				d_const[offset] = on;
+			}
+			ELSE
+			{
+				d_const[offset] = off;
+			}
 		}
 		ELSE
 		{
-			d_const[offset] = off;
+			s_const[offset - dCount] = val;
 		}
-	}
-	ELSE
-	{
-		s_const[offset - dCount] = val;
 	}
 }
 
 Function VarLoop()
 {
 	INTEGER X;
-
-	FOR (X = 1 TO GetNumArrayCols(const_name))
+	FOR (X = 1 TO (dCount + sCount))
 	{
 		IF (const_name[X] <> "")
 		{
@@ -222,6 +270,8 @@ THREADSAFE PUSH load
 
 Function Main()
 {
+	INTEGER sepPos;
+
     loaded = off;
 	load_os = off;
 
@@ -247,7 +297,31 @@ Function Main()
 		}
 	}
 
-	SetArray(d_const, 0);
-	SetArray(s_const, "");
+	//interate const_name checking for separator
+	For (index = 1 to (dCount + sCount))
+	{
+		if (Find(separator, const_name[index]) <> 0)
+		{
+			if (index <= dCount)
+			{
+				d_const[index] = Atoi(getDefault(const_name[index]));
+			}
+			ELSE
+			{
+				s_const[index - dCount] = getDefault(const_name[index]);
+			}
+		}
+		ELSE
+		{
+			if (index <= dCount)
+			{
+				d_const[index] = 0;
+			}
+			ELSE
+			{
+				s_const[index + dCount] = "";
+			}
+		}
+	}
 	loadConstants();
 }
