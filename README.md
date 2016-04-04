@@ -17,9 +17,7 @@ When loading in digital values you can create a NOT for each of them, and then p
 
 When loading strings for use with numeric-string-to-analog.usp us a Make String Permanent symbol.
 
-### Roadmap
-
-add the ability to have both identifier and default value in the parameter -- in design, to be completed in April 2016
+Using the second parameter it is possible to set a delimiter and include default values along with the variable names.
 
 ## numeric-string-to-analog.usp
 
