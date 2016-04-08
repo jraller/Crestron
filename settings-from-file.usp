@@ -107,7 +107,7 @@ STRING_PARAMETER separator[1], _SKIP_;
 	propShortDescription = "The separator used in parameters if both variable name and default value are used";
 #END_PARAMETER_PROPERTIES
 
-STRING_PARAMETER const_name[300,1][276]; // string_output of 255 + sep + 20
+STRING_PARAMETER const_name[300,2][276]; // string_output of 255 + sep + 20
 
 /*******************************************************************************************
   Global Variables
