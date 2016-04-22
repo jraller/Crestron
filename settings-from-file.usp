@@ -182,7 +182,7 @@ String_Function getVariable(STRING param)
 // get the default value portion of a parameter if it is present
 String_Function getDefault(STRING param)
 {
-	STRING value[20];
+	STRING value[255];
 	INTEGER sepPos;
 	value = "";
     sepPos = Find(separator, param);
